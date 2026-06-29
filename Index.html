@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap" rel="stylesheet">
+  
+  <?!= include('CSS'); ?>
+</head>
+
+<body class="glass-bg">
+
+  <header>
+    <div class="logo-text">Dito</div>
+    <div class="timer" id="timer">00:00</div>
+    <div class="header-controls">
+      <span class="wins-badge">🏆 <span id="wins">0</span></span>
+      <button class="btn-icon" onclick="openModal('settings')">⚙️</button>
+    </div>
+  </header>
+
+  <div class="game-area">
+    <div id="grid" class="grid"></div>
+    <div id="msg"></div>
+  </div>
+
+  <div class="keyboard-area" id="keyboard"></div>
+
+  <div id="modal-start" class="modal-overlay">
+    <div class="modal">
+      <div class="intro-container">
+        <div class="intro-tile">D</div>
+        <div class="intro-tile">I</div>
+        <div class="intro-tile">T</div>
+        <div class="intro-tile">O</div>
+      </div>
+      
+      <p id="start-msg" style="font-size:0.9rem; margin-bottom:20px;">Adivinhe a palavra de 5 letras</p>
+      
+      <button id="btn-play" class="btn-main" onclick="startGame()">JOGAR</button>
+      
+      <button class="btn-icon settings-trigger-btn" onclick="openModal('settings')" title="Configurações">⚙️</button>
+      
+      <p id="loading-txt" style="font-size:0.8rem; margin-top:10px; color:var(--absent); min-height:1.2em;"></p>
+    </div>
+  </div>
+
+  <div id="modal-settings" class="modal-overlay">
+    <div class="modal">
+      <h3>Configurações</h3>
+      <p style="font-size:0.8rem; opacity:0.7">Escolha seu tema</p>
+      
+      <div class="theme-grid">
+        <div class="theme-btn" style="background:linear-gradient(135deg, #ee7752, #e73c7e)" onclick="setTheme('glass')" title="Glass">✨</div>
+        <div class="theme-btn" style="background:#000; color:#0ff; border-color:#0ff" onclick="setTheme('neon')" title="Neon">🤖</div>
+        <div class="theme-btn" style="background:#f3f0e6; color:#4a3b32" onclick="setTheme('coffee')" title="Coffee">☕</div>
+        <div class="theme-btn" style="background:#111; color:#fff" onclick="setTheme('midnight')" title="Midnight">🌙</div>
+      </div>
+      
+      <hr style="border:0; border-top:1px solid var(--tile-border); margin:20px 0;">
+      
+      <div id="db-status" style="font-size:0.8rem; margin-bottom:10px;">Status: Verificando...</div>
+      <button class="btn-main" style="background:var(--key-bg)" onclick="importDB(this)">Baixar Banco (10k)</button>
+      
+      <button class="btn-main" style="background:transparent; border:1px solid var(--tile-border); color:var(--text-main)" onclick="closeSettings()">Fechar</button>
+    </div>
+  </div>
+
+  <script>
+    // =========================================
+    // LÓGICA JAVASCRIPT COMPLETA
+    // =========================================
+
+    // --- Estado Global ---
+    let state = { 
+      alvo: "", 
+      tentativa: "", 
+      linha: 0, 
+      wins: 0, 
+      fim: false, 
+      timer: null, 
+      gameStarted: false 
+    };
+    
+    const keysLayout = ["QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"];
+
+    // --- Inicialização ---
+    function init() {
+      // 1. Criar Grid Vazio (6 linhas x 5 colunas)
+      const grid = document.getElementById('grid'); 
+      grid.innerHTML = "";
+      for(let r=0; r<6; r++) {
+        const row = document.createElement('div'); 
+        row.className = 'row';
+        for(let c=0; c<5; c++) {
+          const t = document.createElement('div'); 
+          t.className = 'tile'; 
+          t.id = `t-${r}-${c}`; 
+          row.appendChild(t);
+        }
+        grid.appendChild(row);
+      }
+      
+      // 2. Criar Teclado Virtual
+      const kb = document.getElementById('keyboard'); 
+      kb.innerHTML = "";
+      keysLayout.forEach((rowKeys, i) => {
+        const r = document.createElement('div'); 
+        r.className = 'kb-row';
+        
+        if(i===2) r.appendChild(createKey("ENTER", "big")); // Enter no início da última linha
+        rowKeys.split("").forEach(k => r.appendChild(createKey(k)));
+        if(i===2) r.appendChild(createKey("⌫", "big", "BACKSPACE")); // Backspace no fim
+        
+        kb.appendChild(r);
+      });
+
+      // 3. Carregar Tema Salvo
+      const savedTheme = localStorage.getItem('dito_theme');
+      setTheme(savedTheme || 'glass');
+    }
+
+    // Helper para criar teclas
+    function createKey(label, size="", action=null) {
+      const k = document.createElement('div'); 
+      k.className = `key ${size==='big'?'key-big':''}`;
+      k.innerText = label; 
+      k.dataset.key = action || label;
+      k.onclick = () => handleInput(action || label);
+      return k;
+    }
+
+    // --- Gameplay: Iniciar Jogo ---
+    function startGame() {
+      const btn = document.getElementById('btn-play');
+      const txt = document.getElementById('loading-txt');
+      
+      btn.disabled = true; 
+      btn.style.opacity = 0.5;
+      txt.innerText = "Sorteando palavra...";
+
+      // Chama o Backend (Google Apps Script)
+      google.script.run
+        .withSuccessHandler(palavra => {
+          btn.disabled = false; 
+          btn.style.opacity = 1;
+          
+          if(!palavra) {
+            // Banco vazio
+            txt.innerText = "Banco vazio. Use a engrenagem abaixo para baixar.";
+            txt.style.color = "var(--present)";
+          } else {
+            // Sucesso
+            state.alvo = palavra; 
+            state.gameStarted = true;
+            state.tentativa = ""; 
+            state.linha = 0; 
+            state.fim = false;
+            
+            console.log("Debug Alvo:", palavra); 
+            
+            resetUI();
+            document.getElementById('modal-start').style.display = 'none'; // Fecha intro
+            startTimer();
+          }
+        })
+        .withFailureHandler(e => {
+          txt.innerText = "Erro: " + e.message; 
+          btn.disabled = false;
+        })
+        .sortearNovaPalavra();
+    }
+
+    // --- Gameplay: Inputs ---
+    function handleInput(k) {
+      // Bloqueia input se modais estiverem abertos ou jogo acabou
+      const startOpen = document.getElementById('modal-start').style.display === 'flex';
+      const settingsOpen = document.getElementById('modal-settings').style.display === 'flex';
+      
+      if(state.fim || startOpen || settingsOpen) return;
+      
+      if(k === 'ENTER') submit();
+      else if(k === 'BACKSPACE') { 
+        state.tentativa = state.tentativa.slice(0, -1); 
+        updateGrid(); 
+      }
+      else if(state.tentativa.length < 5 && /^[A-Z]$/.test(k)) { 
+        state.tentativa += k; 
+        updateGrid(); 
+      }
+    }
+
+    // Listener para Teclado Físico
+    window.onkeydown = e => {
+      const k = e.key.toUpperCase();
+      if(k === 'ENTER' || k === 'BACKSPACE') handleInput(k);
+      else if(/^[A-Z]$/.test(k) && k.length === 1) handleInput(k);
+    };
+
+    function updateGrid() {
+      for(let i=0; i<5; i++) {
+        const t = document.getElementById(`t-${state.linha}-${i}`);
+        t.innerText = state.tentativa[i] || "";
+        
+        // Adiciona borda visual se tiver letra
+        if(state.tentativa[i]) t.setAttribute('data-filled', 'true');
+        else t.removeAttribute('data-filled');
+      }
+    }
+
+    // --- Gameplay: Submissão e Verificação ---
+    function submit() {
+      if(state.tentativa.length !== 5) { 
+        msg("Use 5 letras"); 
+        return; 
+      }
+      
+      // Valida existência no Backend
+      google.script.run.withSuccessHandler(existe => {
+        if(!existe) {
+          document.querySelector('.grid').classList.add('shake');
+          msg("Palavra desconhecida");
+          setTimeout(() => document.querySelector('.grid').classList.remove('shake'), 500);
+        } else { 
+          reveal(); 
+        }
+      }).validarPalavraExistente(state.tentativa);
+    }
+
+    function reveal() {
+      const alvoArr = state.alvo.split(""); 
+      const tentArr = state.tentativa.split("");
+      const cores = Array(5).fill('absent'); // Padrão cinza
+      
+      // 1. Verifica Verdes (Posição exata)
+      for(let i=0; i<5; i++) {
+        if(tentArr[i] === alvoArr[i]) { 
+          cores[i] = 'correct'; 
+          alvoArr[i] = null; 
+        }
+      }
+      
+      // 2. Verifica Amarelos (Posição errada)
+      for(let i=0; i<5; i++) {
+        if(cores[i] !== 'correct' && alvoArr.includes(tentArr[i])) {
+          cores[i] = 'present'; 
+          alvoArr[alvoArr.indexOf(tentArr[i])] = null;
+        }
+      }
+
+      // 3. Aplica Animação e Cores
+      for(let i=0; i<5; i++) {
+        const t = document.getElementById(`t-${state.linha}-${i}`);
+        setTimeout(() => {
+          t.classList.add(cores[i], 'flip'); 
+          t.removeAttribute('data-filled');
+          updateKeyboard(tentArr[i], cores[i]);
+        }, i * 200); // Delay cascata
+      }
+      
+      // 4. Verifica Fim de Jogo
+      setTimeout(() => {
+        if(state.tentativa === state.alvo) endGame(true);
+        else if(state.linha === 5) endGame(false);
+        else { 
+          state.linha++; 
+          state.tentativa = ""; 
+        }
+      }, 1200);
+    }
+
+    function updateKeyboard(char, status) {
+      const keys = document.querySelectorAll('.key');
+      keys.forEach(k => {
+        if(k.dataset.key === char) {
+          // Hierarquia de cores: Verde > Amarelo > Cinza
+          const oldScore = k.classList.contains('correct') ? 3 : k.classList.contains('present') ? 2 : k.classList.contains('absent') ? 1 : 0;
+          const newScore = status === 'correct' ? 3 : status === 'present' ? 2 : 1;
+          
+          if(newScore > oldScore) { 
+            k.classList.remove('correct', 'present', 'absent'); 
+            k.classList.add(status); 
+          }
+        }
+      });
+    }
+
+    // --- Fim de Jogo ---
+    function endGame(win) {
+      state.fim = true; 
+      clearInterval(state.timer);
+      
+      const startModal = document.getElementById('modal-start');
+      const msg = document.getElementById('start-msg');
+      const btn = document.getElementById('btn-play');
+      const load = document.getElementById('loading-txt');
+      
+      startModal.style.display = 'flex'; // Reabre o modal
+      btn.innerText = "PRÓXIMA PALAVRA";
+      load.innerText = "";
+      
+      if(win) {
+        state.wins++; 
+        document.getElementById('wins').innerText = state.wins;
+        msg.innerHTML = "<span style='color:var(--correct); font-size:1.2rem'>🎉 PARABÉNS!</span><br>" + state.alvo;
+      } else {
+        msg.innerHTML = "A palavra era: <br><span style='color:var(--text-main); font-weight:bold; font-size:1.5rem'>" + state.alvo + "</span>";
+      }
+    }
+
+    // --- Utilitários ---
+    function resetUI() {
+      document.querySelectorAll('.tile').forEach(t => { 
+        t.className = 'tile'; t.innerText = ''; t.removeAttribute('data-filled'); 
+        t.classList.remove('correct', 'present', 'absent', 'flip'); // Limpa cores antigas
+      });
+      document.querySelectorAll('.key').forEach(k => k.classList.remove('correct','present','absent'));
+      document.getElementById('msg').innerText = "";
+    }
+
+    function startTimer() {
+      const el = document.getElementById('timer'); 
+      const start = Date.now();
+      if(state.timer) clearInterval(state.timer);
+      
+      state.timer = setInterval(() => {
+        const d = Math.floor((Date.now() - start)/1000);
+        const m = Math.floor(d/60).toString().padStart(2,'0');
+        const s = (d%60).toString().padStart(2,'0');
+        el.innerText = `${m}:${s}`;
+      }, 1000);
+    }
+
+    function msg(txt) { 
+      const m = document.getElementById('msg'); 
+      m.innerText = txt; 
+      setTimeout(() => m.innerText = "", 2000); 
+    }
+    
+    // --- Modais ---
+    function openModal(id) { document.getElementById('modal-'+id).style.display = 'flex'; }
+    function closeSettings() { document.getElementById('modal-settings').style.display = 'none'; }
+    
+    function setTheme(name) {
+      document.documentElement.setAttribute('data-theme', name);
+      localStorage.setItem('dito_theme', name);
+    }
+
+    // --- Importação de Banco ---
+    function importDB(btn) {
+      const txt = btn.innerText; 
+      btn.innerText = "Baixando..."; 
+      btn.disabled = true;
+      
+      google.script.run.withSuccessHandler(res => {
+        btn.disabled = false; 
+        btn.innerText = txt;
+        
+        if(res.success) { 
+          alert("Sucesso: " + res.count + " palavras importadas."); 
+          document.getElementById('db-status').innerText = "Banco OK (" + res.count + ")"; 
+        }
+        else { 
+          alert("Erro: " + res.error); 
+        }
+      }).importarPalavrasSugeridas();
+    }
+
+    // Inicia a aplicação
+    init();
+  </script>
+</body>
+</html>

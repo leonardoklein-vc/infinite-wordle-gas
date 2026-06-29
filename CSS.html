@@ -1,0 +1,153 @@
+<style>
+  /* ================= TEMAS (CSS Variables) ================= */
+  :root {
+    /* Padrão: Midnight */
+    --bg-color: #0f0f10; --bg-image: none;
+    --text-main: #ffffff; --text-sec: #818384;
+    --tile-bg: transparent; --tile-border: #3a3a3c; --tile-filled-border: #565758;
+    --key-bg: #818384; --key-text: #fff;
+    --correct: #538d4e; --present: #b59f3b; --absent: #3a3a3c;
+    --modal-bg: #1a1a1b; --shadow: 0 4px 20px rgba(0,0,0,0.5);
+    --font: 'Poppins', sans-serif;
+  }
+
+  [data-theme="glass"] {
+    --bg-color: #2c3e50;
+    --bg-image: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
+    --text-main: #ffffff; --text-sec: rgba(255,255,255,0.8);
+    --tile-bg: rgba(255, 255, 255, 0.1); --tile-border: rgba(255, 255, 255, 0.25);
+    --tile-filled-border: rgba(255, 255, 255, 0.6);
+    --key-bg: rgba(255, 255, 255, 0.2); --key-text: #fff;
+    --correct: rgba(46, 204, 113, 0.9); --present: rgba(241, 196, 15, 0.9); --absent: rgba(0, 0, 0, 0.3);
+    --modal-bg: rgba(20, 20, 20, 0.75); --shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  }
+
+  [data-theme="neon"] {
+    --bg-color: #050505; --bg-image: radial-gradient(circle at 50% 10%, #222, #000);
+    --text-main: #0ff; --text-sec: #f0f;
+    --tile-bg: #000; --tile-border: #333; --tile-filled-border: #0ff;
+    --key-bg: #1a1a1a; --key-text: #0ff;
+    --correct: #0f0; --present: #ffff00; --absent: #333;
+    --modal-bg: #000; --shadow: 0 0 20px rgba(0, 255, 255, 0.2);
+  }
+
+  [data-theme="coffee"] {
+    --bg-color: #f3f0e6; --bg-image: none;
+    --text-main: #4a3b32; --text-sec: #8c7b70;
+    --tile-bg: #fff; --tile-border: #d7ccc8; --tile-filled-border: #8d6e63;
+    --key-bg: #d7ccc8; --key-text: #3e2723;
+    --correct: #66bb6a; --present: #ffa726; --absent: #a1887f;
+    --modal-bg: #fff; --shadow: 0 4px 15px rgba(74, 59, 50, 0.15);
+  }
+  
+  [data-theme="midnight"] {
+     --bg-color: #000000; --bg-image: none;
+     --text-main: #ffffff; --text-sec: #888;
+     --tile-bg: #111; --tile-border: #333; --tile-filled-border: #fff;
+     --key-bg: #333; --key-text: #fff;
+     --correct: #1d9bf0; --present: #ffd400; --absent: #333;
+     --modal-bg: #111; --shadow: 0 4px 20px rgba(255,255,255,0.1);
+  }
+
+  /* ================= LAYOUT GLOBAL ================= */
+  body {
+    margin: 0; padding: 0; width: 100%; height: 100vh;
+    background-color: var(--bg-color); background-image: var(--bg-image);
+    background-size: 400% 400%; animation: gradientBG 15s ease infinite;
+    color: var(--text-main); font-family: var(--font);
+    display: flex; flex-direction: column; overflow: hidden;
+    user-select: none; transition: background 0.3s, color 0.3s;
+  }
+
+  /* Header */
+  header {
+    flex: 0 0 auto; display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 20px; border-bottom: 1px solid var(--tile-border); background: rgba(0,0,0,0.05);
+  }
+  .logo-text { font-weight: 800; font-size: 1.5rem; }
+  .timer { font-family: monospace; font-size: 1.1rem; color: var(--text-sec); }
+  .header-controls { display: flex; gap: 10px; align-items: center; }
+  .wins-badge { font-size: 0.9rem; }
+  .btn-icon { background: none; border: none; color: var(--text-main); font-size: 1.4rem; cursor: pointer; transition: 0.2s; }
+  .btn-icon:hover { opacity: 0.7; transform: rotate(20deg); }
+
+  /* Grid Area */
+  .game-area {
+    flex: 1 1 auto; display: flex; flex-direction: column; justify-content: center; align-items: center;
+    padding: 10px; min-height: 0;
+  }
+  .grid {
+    display: grid; grid-template-rows: repeat(6, 1fr); gap: 5px;
+    height: 100%; max-height: 420px; aspect-ratio: 5/6;
+  }
+  .row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; }
+  .tile {
+    border: 2px solid var(--tile-border); background: var(--tile-bg);
+    display: flex; justify-content: center; align-items: center;
+    font-size: clamp(1.2rem, 4vh, 2rem); font-weight: 700; text-transform: uppercase;
+    border-radius: 6px; transition: all 0.3s; backdrop-filter: blur(2px);
+  }
+  .tile[data-filled] { border-color: var(--tile-filled-border); animation: pop 0.1s; }
+  #msg { height: 20px; font-weight: bold; margin-top: 10px; text-align: center; }
+
+  /* Keyboard Area */
+  .keyboard-area { flex: 0 0 auto; padding: 10px; width: 100%; max-width: 500px; margin: 0 auto; box-sizing: border-box; }
+  .kb-row { display: flex; width: 100%; margin-bottom: 6px; gap: 4px; }
+  .key {
+    flex: 1; height: 45px; border-radius: 4px; background: var(--key-bg); color: var(--key-text);
+    font-weight: 600; display: flex; justify-content: center; align-items: center;
+    cursor: pointer; font-size: 0.9rem; text-transform: uppercase; box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  }
+  .key-big { flex: 1.5; font-size: 0.7rem; }
+
+  /* ================= ESTADOS E ANIMAÇÕES ================= */
+  .correct { background: var(--correct) !important; border-color: var(--correct) !important; color: #fff !important; }
+  .present { background: var(--present) !important; border-color: var(--present) !important; color: #fff !important; }
+  .absent { background: var(--absent) !important; border-color: var(--absent) !important; color: #fff !important; }
+
+  @keyframes gradientBG { 0% {background-position:0% 50%} 50% {background-position:100% 50%} 100% {background-position:0% 50%} }
+  @keyframes pop { 50% { transform: scale(1.1); } }
+  @keyframes flipIn { 0% { opacity: 0; transform: rotateX(90deg); } 100% { opacity: 1; transform: rotateX(0deg); } }
+  @keyframes shake { 0%, 100% {transform: translateX(0);} 25% {transform: translateX(-5px);} 75% {transform: translateX(5px);} }
+  .flip { transform: rotateX(360deg); transition: transform 0.6s, background 0.3s; }
+  .shake { animation: shake 0.4s; }
+
+  /* ================= MODAIS ================= */
+  .modal-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.6); backdrop-filter: blur(8px);
+    z-index: 100; display: none; justify-content: center; align-items: center;
+  }
+  #modal-settings { z-index: 200; }
+  #modal-start { z-index: 100; display: flex; }
+
+  .modal {
+    background: var(--modal-bg); padding: 30px; border-radius: 16px; width: 85%; max-width: 320px;
+    text-align: center; box-shadow: var(--shadow); border: 1px solid var(--tile-border); color: var(--text-main);
+  }
+
+  /* Intro Animation */
+  .intro-container { display: flex; gap: 8px; margin-bottom: 30px; justify-content: center; }
+  .intro-tile {
+    width: 50px; height: 50px; background: var(--correct); color: white;
+    font-size: 2rem; font-weight: 900; display: flex; justify-content: center; align-items: center;
+    border-radius: 8px; opacity: 0; transform: rotateX(90deg);
+    animation: flipIn 0.8s forwards; box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+  }
+  .intro-tile:nth-child(1) { animation-delay: 0.1s; background: var(--correct); }
+  .intro-tile:nth-child(2) { animation-delay: 0.25s; background: var(--present); }
+  .intro-tile:nth-child(3) { animation-delay: 0.4s; background: var(--present); }
+  .intro-tile:nth-child(4) { animation-delay: 0.55s; background: var(--correct); }
+
+  .btn-main {
+    background: var(--correct); color: white; border: none; padding: 12px 24px; border-radius: 50px;
+    font-weight: bold; font-size: 1rem; cursor: pointer; width: 100%; margin-top: 15px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2); transition: transform 0.1s;
+  }
+  .btn-main:active { transform: scale(0.95); }
+
+  .settings-trigger-btn { margin-top: 20px; font-size: 1.5rem; background: rgba(255,255,255,0.1); padding: 10px; border-radius: 50%; }
+
+  .theme-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 15px; }
+  .theme-btn { width: 40px; height: 40px; border-radius: 50%; cursor: pointer; border: 2px solid var(--tile-border); display: flex; justify-content: center; align-items: center; }
+</style>
